@@ -7,6 +7,17 @@ const productSchema = new mongoose.Schema(
             required: true,
             trim: true
         },
+        sku: {
+            type: Number,
+            min: 1,
+            max: 999,
+            unique: true,
+            sparse: true,
+            validate: {
+                validator: Number.isInteger,
+                message: 'SKU must be an integer'
+            }
+        },
         category: {
             type: String,
             required: true,
