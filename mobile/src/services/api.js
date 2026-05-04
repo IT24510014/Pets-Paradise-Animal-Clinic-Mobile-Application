@@ -13,12 +13,7 @@ const getDevApiUrl = () => {
     return host ? `http://${host}:5000/api` : '';
 };
 
-const BASE_URL =
-    (__DEV__ && getDevApiUrl()) ||
-    process.env.EXPO_PUBLIC_API_URL ||
-    'http://127.0.0.1:5000';
-
-export const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
+export const API_URL = (__DEV__ && getDevApiUrl()) || process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
 
 console.log('API URL =', API_URL);
 
