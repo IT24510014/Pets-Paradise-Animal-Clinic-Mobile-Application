@@ -12,6 +12,8 @@ export default function UserDashboard() {
     const [featuredLoading, setFeaturedLoading] = useState(true);
     const [featuredError, setFeaturedError] = useState('');
     const [upcomingAppointment, setUpcomingAppointment] = useState(null);
+    const [latestPetRecords, setLatestPetRecords] = useState([]);
+    const [petRecordsLoading, setPetRecordsLoading] = useState(true);
 
     const loadFeaturedProducts = useCallback(async () => {
         try {
@@ -30,9 +32,7 @@ export default function UserDashboard() {
     const loadUpcomingAppointment = useCallback(async () => {
         try {
             const res = await API.get('/appointments/my-appointments');
-            const nextAppointment = (res.data || []).find((appointment) =>
-                !['Completed', 'Cancelled'].includes(appointment.status)
-            );
+            const nextAppointment = getNextUpcomingAppointment(res.data || []);
 
             setUpcomingAppointment(nextAppointment || null);
         } catch (_error) {
@@ -40,11 +40,25 @@ export default function UserDashboard() {
         }
     }, []);
 
+    const loadLatestPetRecords = useCallback(async () => {
+        try {
+            setPetRecordsLoading(true);
+            const res = await API.get('/pets/my-pets');
+
+            setLatestPetRecords(getLatestPetRecords(res.data || []));
+        } catch (_error) {
+            setLatestPetRecords([]);
+        } finally {
+            setPetRecordsLoading(false);
+        }
+    }, []);
+
     useFocusEffect(
         useCallback(() => {
             loadFeaturedProducts();
             loadUpcomingAppointment();
-        }, [loadFeaturedProducts, loadUpcomingAppointment])
+            loadLatestPetRecords();
+        }, [loadFeaturedProducts, loadUpcomingAppointment, loadLatestPetRecords])
     );
 
     return (
@@ -108,17 +122,25 @@ export default function UserDashboard() {
 
                 <Section title="Upcoming Appointment" action="Book" onPress={() => router.push('/user/appointments')} />
                 <View style={styles.infoCard}>
-                    <Text style={styles.infoTitle}>{upcomingAppointment?.reason || 'No appointment booked'}</Text>
+                    <Text style={styles.infoTitle}>{upcomingAppointment?.reason || 'No upcoming appointments'}</Text>
                     <Text style={styles.infoText}>
                         {upcomingAppointment ? `${upcomingAppointment.petName} | ${upcomingAppointment.date} | ${formatTimeLabel(upcomingAppointment.time)}` : 'Book a clinic visit for your pet'}
                     </Text>
                 </View>
 
                 <Section title="Pet Records" action="Manage" onPress={() => router.push('/user/pets')} />
-                <View style={styles.infoCard}>
-                    <Text style={styles.infoTitle}>Rocky</Text>
-                    <Text style={styles.infoText}>Dog • 2 years • Healthy</Text>
-                </View>
+                {petRecordsLoading ? (
+                    <View style={styles.infoCard}>
+                        <ActivityIndicator color="#16a34a" />
+                    </View>
+                ) : latestPetRecords.length === 0 ? (
+                    <View style={styles.infoCard}>
+                        <Text style={styles.infoTitle}>No pet records yet</Text>
+                        <Text style={styles.infoText}>Latest pet records will appear here</Text>
+                    </View>
+                ) : (
+                    latestPetRecords.map((item) => <PetRecordSummary key={item.key} item={item} />)
+                )}
             </ScrollView>
         </View>
     );
@@ -181,6 +203,20 @@ function ProductImage({ imageUrl }) {
     );
 }
 
+function PetRecordSummary({ item }) {
+    return (
+        <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>{item.petName}</Text>
+            <Text style={styles.petRecordMeta}>
+                {item.record.date || 'No date'} | {item.record.title}
+            </Text>
+            <Text style={styles.infoText} numberOfLines={2}>
+                {item.record.notes || 'No notes added'}
+            </Text>
+        </View>
+    );
+}
+
 function normalizeImageUrl(value) {
     let imageUrl = String(value || '').trim();
 
@@ -201,6 +237,66 @@ function normalizeImageUrl(value) {
     }
 
     return '';
+}
+
+function getNextUpcomingAppointment(appointments) {
+    return appointments
+        .filter(isUpcomingAppointment)
+        .sort((first, second) => parseAppointmentDateTime(first) - parseAppointmentDateTime(second))[0];
+}
+
+function isUpcomingAppointment(appointment) {
+    if (['Completed', 'Cancelled'].includes(appointment.status)) {
+        return false;
+    }
+
+    const appointmentDateTime = parseAppointmentDateTime(appointment);
+
+    return appointmentDateTime && appointmentDateTime >= new Date();
+}
+
+function parseAppointmentDateTime(appointment) {
+    const date = appointment?.date;
+    const time = appointment?.time;
+
+    if (!date || !time) {
+        return null;
+    }
+
+    const appointmentDateTime = new Date(`${date}T${time}:00`);
+
+    return Number.isNaN(appointmentDateTime.getTime()) ? null : appointmentDateTime;
+}
+
+function getLatestPetRecords(pets) {
+    return pets
+        .map((pet) => {
+            const latestRecord = getLatestRecord(pet.records || []);
+
+            if (!latestRecord) {
+                return null;
+            }
+
+            return {
+                key: `${pet._id || pet.id || pet.name}-${latestRecord._id || latestRecord.id || latestRecord.createdAt || latestRecord.date}`,
+                petName: pet.name || 'Pet',
+                record: latestRecord
+            };
+        })
+        .filter(Boolean);
+}
+
+function getLatestRecord(records) {
+    return records
+        .filter((record) => record?.title)
+        .sort((first, second) => parseRecordDate(second) - parseRecordDate(first))[0];
+}
+
+function parseRecordDate(record) {
+    const value = record.date || record.createdAt || record.updatedAt;
+    const date = new Date(value ? String(value) : 0);
+
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
 function formatTimeLabel(value) {
@@ -257,5 +353,6 @@ const styles = StyleSheet.create({
     productPrice: { color: '#2563eb', fontWeight: '900', marginTop: 8 },
     infoCard: { backgroundColor: '#fff', padding: 16, borderRadius: 18, marginBottom: 10 },
     infoTitle: { fontWeight: '900', fontSize: 17 },
-    infoText: { color: '#6b7280', marginTop: 4 }
+    infoText: { color: '#6b7280', marginTop: 4 },
+    petRecordMeta: { color: '#16a34a', fontWeight: '900', marginTop: 4 }
 });

@@ -4,7 +4,25 @@ const Product = require('../models/Product');
 
 exports.checkout = async (req, res) => {
     try {
-        const { shippingAddress, paymentMethod } = req.body;
+        const { shippingAddress, mobileNumber, paymentMethod } = req.body;
+        const contactMobile = String(mobileNumber || '').replace(/\D/g, '');
+        const allowedPaymentMethods = ['Debit Card', 'Cash on Delivery', 'Bank Transfer'];
+
+        if (!shippingAddress || !shippingAddress.trim()) {
+            return res.status(400).json({ msg: 'Shipping address is required' });
+        }
+
+        if (!/^\d{10}$/.test(contactMobile)) {
+            return res.status(400).json({ msg: 'Mobile number must be exactly 10 digits' });
+        }
+
+        if (!allowedPaymentMethods.includes(paymentMethod)) {
+            return res.status(400).json({ msg: 'Invalid payment method' });
+        }
+
+        if (paymentMethod === 'Bank Transfer' && !req.file) {
+            return res.status(400).json({ msg: 'Payment proof is required for bank transfer' });
+        }
 
         const cart = await Cart.findOne({ user: req.user.id }).populate('items.product');
 
@@ -28,6 +46,7 @@ exports.checkout = async (req, res) => {
             return {
                 product: item.product._id,
                 name: item.product.name,
+                sku: item.product.sku,
                 price: item.product.price,
                 quantity: item.quantity
             };
@@ -43,8 +62,15 @@ exports.checkout = async (req, res) => {
             user: req.user.id,
             items: orderItems,
             totalAmount,
-            shippingAddress,
-            paymentMethod
+            shippingAddress: shippingAddress.trim(),
+            mobileNumber: contactMobile,
+            paymentMethod,
+            paymentProof: req.file ? {
+                fileName: req.file.filename,
+                originalName: req.file.originalname,
+                mimeType: req.file.mimetype,
+                url: `/uploads/payment-proofs/${req.file.filename}`
+            } : undefined
         });
 
         cart.items = [];
@@ -68,7 +94,8 @@ exports.getMyOrders = async (req, res) => {
 exports.getAllOrders = async (req, res) => {
     try {
         const orders = await Order.find()
-            .populate('user', 'name email role')
+            .populate('user', 'name email phone role')
+            .populate('items.product', 'sku')
             .sort({ createdAt: -1 });
 
         res.json(orders);
@@ -80,7 +107,7 @@ exports.getAllOrders = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
     try {
         const { status } = req.body;
-        const allowedStatuses = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
+        const allowedStatuses = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 
         if (!allowedStatuses.includes(status)) {
             return res.status(400).json({ msg: 'Invalid order status' });
@@ -90,13 +117,33 @@ exports.updateOrderStatus = async (req, res) => {
             req.params.id,
             { status },
             { new: true }
-        ).populate('user', 'name email role');
+        ).populate('user', 'name email phone role').populate('items.product', 'sku');
 
         if (!order) {
             return res.status(404).json({ msg: 'Order not found' });
         }
 
         res.json(order);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+exports.deleteOrder = async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+
+        if (!order) {
+            return res.status(404).json({ msg: 'Order not found' });
+        }
+
+        if (order.status !== 'Cancelled') {
+            return res.status(400).json({ msg: 'Only cancelled orders can be deleted' });
+        }
+
+        await order.deleteOne();
+
+        res.json({ msg: 'Order deleted successfully' });
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
