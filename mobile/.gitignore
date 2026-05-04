@@ -1,0 +1,64 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Expo / React Native
+# =========================
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+
+# =========================
+# Native / Build files
+# =========================
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# =========================
+# Metro / Debug
+# =========================
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# =========================
+# OS / System
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE
+# =========================
+.vscode/
+
+# =========================
+# TypeScript
+# =========================
+*.tsbuildinfo
+
+# =========================
+# Optional / Templates
+# =========================
+app-example
+
+# =========================
+# Generated native folders
+# =========================
+/ios
+/android
