@@ -8,6 +8,7 @@ const orderItemSchema = new mongoose.Schema(
             required: true
         },
         name: String,
+        sku: Number,
         price: Number,
         quantity: Number
     },
@@ -28,16 +29,38 @@ const orderSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'],
+            enum: ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
             default: 'Pending'
         },
         shippingAddress: {
             type: String,
             default: ''
         },
+        mobileNumber: {
+            type: String,
+            default: ''
+        },
         paymentMethod: {
             type: String,
             default: 'Cash on Delivery'
+        },
+        paymentProof: {
+            fileName: {
+                type: String,
+                default: ''
+            },
+            originalName: {
+                type: String,
+                default: ''
+            },
+            mimeType: {
+                type: String,
+                default: ''
+            },
+            url: {
+                type: String,
+                default: ''
+            }
         }
     },
     { timestamps: true }
