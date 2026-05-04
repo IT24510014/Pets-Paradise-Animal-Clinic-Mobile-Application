@@ -10,7 +10,7 @@ connectDB();
 const allowedOrigins = [
     'http://localhost:8081',
     'http://localhost:19006',
-    'https://your-vercel-app.vercel.app'
+    'https://https://pets-paradise-animal-clinic-mobile.vercel.app'
 ];
 
 app.use(cors({
