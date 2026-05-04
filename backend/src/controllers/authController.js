@@ -7,10 +7,17 @@ const jwt = require('jsonwebtoken');
 exports.register = async (req, res) => {
     try {
         const { name, email, password, phone, address } = req.body;
+        const mobileNumber = String(phone || '').replace(/\D/g, '');
 
-        if (!name || !email || !password) {
+        if (!name || !email || !password || !mobileNumber) {
             return res.status(400).json({
-                msg: 'Name, email and password are required'
+                msg: 'Name, email, mobile number and password are required'
+            });
+        }
+
+        if (!/^\d{10}$/.test(mobileNumber)) {
+            return res.status(400).json({
+                msg: 'Mobile number must be exactly 10 digits'
             });
         }
 
@@ -30,7 +37,7 @@ exports.register = async (req, res) => {
             name,
             email: email.toLowerCase(),
             password: hashedPassword,
-            phone: phone || '',
+            phone: mobileNumber,
             address: address || '',
             role: 'user'
         });
@@ -41,6 +48,8 @@ exports.register = async (req, res) => {
                 id: user._id,
                 name: user.name,
                 email: user.email,
+                phone: user.phone,
+                address: user.address,
                 role: user.role
             }
         });
@@ -98,6 +107,8 @@ exports.login = async (req, res) => {
                 id: user._id,
                 name: user.name,
                 email: user.email,
+                phone: user.phone,
+                address: user.address,
                 role: user.role
             }
         });
@@ -129,4 +140,100 @@ exports.me = async (req, res) => {
 
     }
 
+};
+
+exports.updateMe = async (req, res) => {
+    try {
+        const { name, phone, address } = req.body;
+        const updates = {};
+
+        if (name !== undefined) {
+            if (!name.trim()) {
+                return res.status(400).json({ msg: 'Name is required' });
+            }
+
+            updates.name = name.trim();
+        }
+
+        if (phone !== undefined) {
+            const mobileNumber = String(phone || '').replace(/\D/g, '');
+
+            if (!/^\d{10}$/.test(mobileNumber)) {
+                return res.status(400).json({ msg: 'Mobile number must be exactly 10 digits' });
+            }
+
+            updates.phone = mobileNumber;
+        }
+
+        if (address !== undefined) {
+            updates.address = address.trim();
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            updates,
+            { new: true }
+        ).select('-password');
+
+        if (!user) {
+            return res.status(404).json({ msg: 'User not found' });
+        }
+
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({
+            msg: error.message
+        });
+    }
+};
+
+exports.changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({
+                msg: 'Current password, new password and confirmation are required'
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                msg: 'New password must be at least 6 characters'
+            });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({
+                msg: 'New passwords do not match'
+            });
+        }
+
+        if (currentPassword === newPassword) {
+            return res.status(400).json({
+                msg: 'New password must be different from current password'
+            });
+        }
+
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ msg: 'User not found' });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+        if (!isMatch) {
+            return res.status(400).json({ msg: 'Current password is incorrect' });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+
+        res.json({ msg: 'Password changed successfully' });
+    } catch (error) {
+        res.status(500).json({
+            msg: error.message
+        });
+    }
 };
