@@ -1,17 +1,31 @@
 const User = require('../models/User');
 const Order = require('../models/Order');
 const Pet = require('../models/Pet');
+const Product = require('../models/Product');
+const Appointment = require('../models/Appointment');
 
 exports.getStats = async (req, res) => {
     try {
-        const totalUsers = await User.countDocuments();
-        const totalOrders = await Order.countDocuments();
-        const totalPets = await Pet.countDocuments();
+        const [
+            totalUsers,
+            totalOrders,
+            totalPets,
+            totalProducts,
+            totalAppointments
+        ] = await Promise.all([
+            User.countDocuments(),
+            Order.countDocuments(),
+            Pet.countDocuments(),
+            Product.countDocuments(),
+            Appointment.countDocuments()
+        ]);
 
         res.json({
             totalUsers,
             totalOrders,
-            totalPets
+            totalPets,
+            totalProducts,
+            totalAppointments
         });
 
     } catch (err) {
